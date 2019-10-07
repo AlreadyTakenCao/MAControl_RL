@@ -1,7 +1,6 @@
 from MAControl.Base.PolicyMaker import PolicyMaker
 import random
 import numpy as np
-import math
 from MAControl.Util.PointInRec import point_in_rec
 from MAControl.Util.Constrain import constrain
 import math
@@ -19,7 +18,7 @@ class PolicyMaker_Auction(PolicyMaker):
     #                                                                     攻击[阶段]
 
     # 在搜索目标阶段(<Step0)操作，只增不减
-    Found_Target_Set = []  # {target_pos, target_vel, target_value, target_defence}
+    Found_Target_Set = []  # {target_pos, target_vel, target_value, target_defence, target_type, T_INDEX}
     Found_Target_Info = []  # {TARGET:UAV_INDEX}
 
     # 在重置步(==Step5)操作，只增不减
@@ -29,7 +28,7 @@ class PolicyMaker_Auction(PolicyMaker):
     Remain_UAV_Set = []  # {UAV_INDEX}
 
     # 在重置步(==Step5)重置
-    Remain_Target_Set = []  # {target_pos, target_vel, target_value, target_defence, TARGET_INDEX}
+    Remain_Target_Set = []  # {target_pos, target_vel, target_value, target_defence, target_type, T_INDEX, TARGET_INDEX}
     Current_Target_Index = -1  # {TARGET_INDEX}
     Current_Price_Set = []   # {UAV X STEP}
     Current_Price_Result = []  # {UAV_INDEX,UAV_PRICE}
@@ -40,6 +39,7 @@ class PolicyMaker_Auction(PolicyMaker):
         self.x = 0
         self.y = 0
         self.InAttacking = False
+        self.result = -1
 
         # 以下为一些阶段的初始设定步数
         # >> 未来步数点可修改，从而可以主动停留在某一阶段/步
@@ -54,7 +54,6 @@ class PolicyMaker_Auction(PolicyMaker):
 
         self.swarm_size = 0
         self.close_area = []
-        PolicyMaker_Auction.Remain_UAV_Set.append(self.index)
 
     def find_mate(self, obs_n, r=0.5):
         selfpos = np.array(obs_n[self.index][2:4])
@@ -95,6 +94,26 @@ class PolicyMaker_Auction(PolicyMaker):
             targetpos = np.array(target[0:2])
             if point_in_rec(selfview1, selfview2, selfview3, selfview4, targetpos):
                 seen_target.append(target)
+                truetype = target[-2]
+                if truetype == 1:
+                    gtype = np.random.choice([1, 2, 3], 1, p=[0.2, 0.4, 0.4])
+                    if gtype == 2:
+                        seen_target[-1][-4:-1] = [10, 1, 2]
+                    elif gtype == 3:
+                        seen_target[-1][-4:-1] = [5, 2, 3]
+                elif truetype == 2:
+                    gtype = np.random.choice([1, 2, 3], 1, p=[0.4, 0.2, 0.4])
+                    if gtype == 3:
+                        seen_target[-1][-4:-1] = [5, 2, 3]
+                    elif gtype == 1:
+                        seen_target[-1][-4:-1] = [2, 5, 1]
+                elif truetype == 3:
+                    gtype = np.random.choice([1, 2, 3], 1, p=[0.4, 0.4, 0.2])
+                    if gtype == 1:
+                        seen_target[-1][-4:-1] = [2, 5, 1]
+                    elif gtype == 2:
+                        seen_target[-1][-4:-1] = [10, 1, 2]
+                # 在seen_target中，真序号是准确的（唯一标识），类型可能有误（相应的价值和防御能力都有误）
 
         # READ AND WRITE TESTControl.Found_Target_Set
         if not PolicyMaker_Auction.Found_Target_Set:
@@ -129,7 +148,7 @@ class PolicyMaker_Auction(PolicyMaker):
         check3a = 0 if len(PolicyMaker_Auction.Found_Target_Set) == 0 \
             else (np.sum(PolicyMaker_Auction.Found_Target_Set, axis=0))[4]/len(PolicyMaker_Auction.Remain_UAV_Set)
         # 阈值随时间减少
-        check3b = 2000/(step+1)
+        check3b = 1000/self.env.n*20/(step+1)
         check3 = (check3a > check3b)
 
         if check1 and check2 and check3:
@@ -221,12 +240,12 @@ class PolicyMaker_Auction(PolicyMaker):
 
         if self.InAttacking:
             self.opt_index = 10
-            print('UAV', self.index, 'ATTACKING ATTACKING')
+            # print('UAV', self.index, 'ATTACKING ATTACKING')
 
         else:
 
             if step < self.Step0:
-                print('UAV', self.index, 'searching')
+                # print('UAV', self.index, 'searching')
                 self.close_area = self.find_mate(obs_n)
                 self.add_new_target(obs_n[self.index], WorldTarget)
                 self.opt_index = 0
@@ -237,7 +256,7 @@ class PolicyMaker_Auction(PolicyMaker):
                     self.operate_step(3, step, waitstep=10)
 
             elif step == self.Step0:
-                print('UAV', self.index, 'resorting')
+                # print('UAV', self.index, 'resorting')
 
                 if self.index == max(PolicyMaker_Auction.Remain_UAV_Set):
 
@@ -246,19 +265,19 @@ class PolicyMaker_Auction(PolicyMaker):
                             PolicyMaker_Auction.Remain_Target_Set.append(PolicyMaker_Auction.Found_Target_Set[i]+[i])
 
                     PolicyMaker_Auction.Remain_Target_Set = sorted(PolicyMaker_Auction.Remain_Target_Set, key=lambda x: x[4], reverse=True)
-                    print('Found_Target_Set: ', PolicyMaker_Auction.Found_Target_Set)
-                    print('Remain_Target_Set: ', PolicyMaker_Auction.Remain_Target_Set)
+                    # print('Found_Target_Set: ', PolicyMaker_Auction.Found_Target_Set)
+                    # print('Remain_Target_Set: ', PolicyMaker_Auction.Remain_Target_Set)
 
             elif step == self.Step1:
-                print('UAV', self.index, 'choosing')
+                # print('UAV', self.index, 'choosing')
 
                 if self.index == max(PolicyMaker_Auction.Remain_UAV_Set):
                     PolicyMaker_Auction.Current_Target_Index = PolicyMaker_Auction.Remain_Target_Set[0][-1]
-                    print('Current_Target_Index: ', PolicyMaker_Auction.Current_Target_Index)
+                    # print('Current_Target_Index: ', PolicyMaker_Auction.Current_Target_Index)
                     PolicyMaker_Auction.Current_Price_Set = [[0 for j in range(len(PolicyMaker_Auction.Remain_UAV_Set))] for k in range(18)]
 
             elif self.Step2 <= step < self.Step3:
-                print('UAV', self.index, 'pricing')
+                # print('UAV', self.index, 'pricing')
 
                 # TODO 是否出价如何判断
                 if random.random() > 0.5:
@@ -267,7 +286,7 @@ class PolicyMaker_Auction(PolicyMaker):
                     # Current_Price_Set 是根据 Remain_UAV_Set 生成的，从后者选取编号
 
             elif step == self.Step3:
-                print('UAV', self.index, 'priced')
+                # print('UAV', self.index, 'priced')
                 self.swarm_size = len(PolicyMaker_Auction.Remain_UAV_Set)
 
                 if self.index == max(PolicyMaker_Auction.Remain_UAV_Set):
@@ -278,15 +297,22 @@ class PolicyMaker_Auction(PolicyMaker):
 
                     PolicyMaker_Auction.Current_Price_Result = \
                         sorted(PolicyMaker_Auction.Current_Price_Result, key=lambda x: x[1], reverse=True)
-                    print('Current_Price_Result: ', PolicyMaker_Auction.Current_Price_Result)
+                    # print('Current_Price_Result: ', PolicyMaker_Auction.Current_Price_Result)
 
             elif step == self.Step4:
                 # 下述计算会在各个UAV本地重复进行，确认自己是否具有攻击资格，部分UAV即将进入攻击阶段
-                # 因为基于共享量进行计算，中间变量的计算结果将相同
 
-                DEMANDED_UAV_NUM = PolicyMaker_Auction.Found_Target_Set[PolicyMaker_Auction.Current_Target_Index][5]
+                # 根据当前目标的类型估计，重新讨论目标的类型（含有随机性），进而确定需要的UAV个数
+                DEMANDED_UAV_NUM = 0
+                if PolicyMaker_Auction.Found_Target_Set[PolicyMaker_Auction.Current_Target_Index][5] == 5:
+                    DEMANDED_UAV_NUM = np.random.choice([5, 1, 2], 1, p=[0.0896, 0.0467, 0.8637])[0]
+                elif PolicyMaker_Auction.Found_Target_Set[PolicyMaker_Auction.Current_Target_Index][5] == 1:
+                    DEMANDED_UAV_NUM = np.random.choice([5, 1, 2], 1, p=[0.1313, 0.3319, 0.5368])[0]
+                elif PolicyMaker_Auction.Found_Target_Set[PolicyMaker_Auction.Current_Target_Index][5] == 2:
+                    DEMANDED_UAV_NUM = np.random.choice([5, 1, 2], 1, p=[0.0384, 0.3925, 0.5691])[0]
+
                 if DEMANDED_UAV_NUM > self.swarm_size:
-                    print('WARNING: HARD TARGET ', PolicyMaker_Auction.Current_Target_Index)
+                    # print('WARNING: HARD TARGET ', PolicyMaker_Auction.Current_Target_Index)
                     CHOSEN_UAV_NUM = self.swarm_size
                 else:
                     CHOSEN_UAV_NUM = DEMANDED_UAV_NUM
@@ -296,16 +322,18 @@ class PolicyMaker_Auction(PolicyMaker):
                     CHOSEN_UAV_SET.append(PolicyMaker_Auction.Current_Price_Result[k][0])
 
                 if self.index in CHOSEN_UAV_SET:
-                    print('UAV', self.index, 'to attack')
+                    # print('UAV', self.index, 'to attack')
                     self.InAttacking = True
                     self.x = PolicyMaker_Auction.Found_Target_Set[PolicyMaker_Auction.Current_Target_Index][0]
                     self.y = PolicyMaker_Auction.Found_Target_Set[PolicyMaker_Auction.Current_Target_Index][1]
+                    self.result = PolicyMaker_Auction.Found_Target_Set[PolicyMaker_Auction.Current_Target_Index][7]
                     PolicyMaker_Auction.Remain_UAV_Set.remove(self.index)
                 else:
-                    print('UAV', self.index, 'not to attack')
+                    pass
+                    # print('UAV', self.index, 'not to attack')
 
             elif step == self.Step5:
-                print('UAV', self.index, 'recycling')
+                # print('UAV', self.index, 'recycling')
                 self.operate_step(1, step)
 
                 if len(PolicyMaker_Auction.Remain_Target_Set) == 1:
@@ -323,4 +351,4 @@ class PolicyMaker_Auction(PolicyMaker):
             else:
                 raise Exception('Wrong Wrong Wrong')
 
-        return [self.opt_index, [self.x, self.y]]
+        return [self.opt_index, [self.x, self.y, self.result]]

@@ -47,10 +47,9 @@ class Entity(object):
         self.state = EntityState()
         # mass
         self.initial_mass = 1.0
-        # UAV
-        self.UAV = False
         # attacking
         self.attacking = False
+        self.attacking_to = -1  # true target index
 
     @property
     def mass(self):
@@ -65,6 +64,8 @@ class Landmark(Entity):
         self.value = 0
         # defence
         self.defence = 0
+        # type
+        self.type = 0
 
 
 # properties of agent entities
